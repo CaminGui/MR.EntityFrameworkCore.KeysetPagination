@@ -59,7 +59,7 @@ public static class KeysetPaginationExtensions
 			filteredQuery = filteredQuery.Where(keysetFilterPredicateLambda);
 		}
 
-		return new KeysetPaginationContext<T>(filteredQuery, orderedQuery, columns, direction);
+		return new KeysetPaginationContext<T>(filteredQuery, orderedQuery, columns, direction, reference != null);
 	}
 
 		/// <summary>
@@ -127,6 +127,98 @@ public static class KeysetPaginationExtensions
 		where T : class
 	{
 		return KeysetPaginate(source, builderAction, direction, reference).Query;
+	}
+
+	/// <summary>
+	/// Returns true when there is more data before the list.
+	/// </summary>
+	/// <typeparam name="T">The type of the entity.</typeparam>
+	/// <typeparam name="T2">The type of the elements of the data.</typeparam>
+	/// <param name="context">The <see cref="KeysetPaginationContext{T}"/> object.</param>
+	/// <param name="data">The data list.</param>
+	/// <param name="areEqualItems">The items comparer.</param>
+	public static Task<bool> HasPreviousAsync<T, T2>(
+		this KeysetPaginationContext<T> context,
+		IReadOnlyList<T2> data,
+		Func<T, T2, bool> areEqualItems)
+		where T : class
+	{
+		if (data == null) throw new ArgumentNullException(nameof(data));
+		if (context == null) throw new ArgumentNullException(nameof(context));
+
+		if (!data.Any())
+		{
+			return Task.FromResult(false);
+		}
+
+		if (context.Direction == KeysetPaginationDirection.Forward)
+		{
+			if (context.HasInitialReference)
+			{
+				return Task.FromResult(true);
+			}
+			else
+			{
+				return Task.FromResult(false);
+			}
+		}
+
+		// Get first items and see if they match.
+		var firstItemEntireList = context.OrderedQuery.LastOrDefault();
+		var firstItemFetchedList = data.FirstOrDefault();
+		if (null == firstItemEntireList ||
+			null == firstItemFetchedList)
+		{
+			return Task.FromResult(false);
+		}
+
+		return Task.FromResult(!areEqualItems(firstItemEntireList, firstItemFetchedList));
+	}
+
+	/// <summary>
+	/// Returns true when there is more data after the list.
+	/// </summary>
+	/// <typeparam name="T">The type of the entity.</typeparam>
+	/// <typeparam name="T2">The type of the elements of the data.</typeparam>
+	/// <param name="context">The <see cref="KeysetPaginationContext{T}"/> object.</param>
+	/// <param name="data">The data list.</param>
+	/// <param name="areEqualItems">The items comparer.</param>
+	public static Task<bool> HasNextAsync<T, T2>(
+		this KeysetPaginationContext<T> context,
+		IReadOnlyList<T2> data,
+		Func<T, T2, bool> areEqualItems)
+		where T : class
+	{
+		if (data == null) throw new ArgumentNullException(nameof(data));
+		if (context == null) throw new ArgumentNullException(nameof(context));
+
+		if (!data.Any())
+		{
+			return Task.FromResult(false);
+		}
+
+		if (context.Direction == KeysetPaginationDirection.Backward)
+		{
+			if (context.HasInitialReference)
+			{
+				return Task.FromResult(true);
+			}
+			else
+			{
+				return Task.FromResult(false);
+			}
+		}
+
+		// Get last items and see if they match.
+		var lastItemEntireList = context.OrderedQuery.LastOrDefault();
+		var lastItemFetchedList = data.LastOrDefault();
+		if (null == lastItemEntireList ||
+			null == lastItemFetchedList)
+		{
+			return Task.FromResult(false);
+		}
+
+		return Task.FromResult(!areEqualItems(lastItemEntireList, lastItemFetchedList));
 	}
 
 	/// <summary>
@@ -264,6 +356,7 @@ public static class KeysetPaginationExtensions
 
 		var firstMemberAccessExpression = default(Expression);
 		var firstReferenceValueExpression = default(Expression);
+		object? firstReferenceValue = default;
 
 		// entity =>
 		var param = Expression.Parameter(typeof(T), "entity");
@@ -299,6 +392,7 @@ public static class KeysetPaginationExtensions
 					// This might be used later on in an optimization.
 					firstMemberAccessExpression = memberAccess;
 					firstReferenceValueExpression = referenceValueExpression;
+					firstReferenceValue = referenceValue;
 				}
 
 				BinaryExpression innerExpression;
@@ -310,7 +404,7 @@ public static class KeysetPaginationExtensions
 				}
 				else
 				{
-					var compare = GetComparisonExpressionToApply(direction, column, orEqual: false);
+					var compare = GetComparisonExpressionToApply(direction, column, referenceValue, orEqual: false);
 					innerExpression = MakeComparisonExpression(
 						column,
 						memberAccess, referenceValueExpression,
@@ -336,12 +430,34 @@ public static class KeysetPaginationExtensions
 			// understand and can use as an access predicate (most commonly when the column is indexed).
 
 			var firstColumn = columns[0];
-			var compare = GetComparisonExpressionToApply(direction, firstColumn, orEqual: true);
-			var accessPredicateClause = MakeComparisonExpression(
-				firstColumn,
-				firstMemberAccessExpression!, firstReferenceValueExpression!,
-				compare);
-			finalExpression = Expression.And(accessPredicateClause, finalExpression);
+
+			Expression? left = default;
+			if (null == firstReferenceValue)
+			{
+				var compare1 = GetComparisonExpressionToApply(direction, firstColumn, firstReferenceValue, orEqual: false);
+				var innerLeft = MakeComparisonExpression(
+					firstColumn,
+					firstMemberAccessExpression!, firstReferenceValueExpression!,
+					compare1);
+
+				var compare2 = GetComparisonExpressionToApply(direction, firstColumn, firstReferenceValue, orEqual: true);
+				var innerRight = MakeComparisonExpression(
+					firstColumn,
+					firstMemberAccessExpression!, firstReferenceValueExpression!,
+					compare2);
+
+				left = Expression.Or(innerLeft, innerRight);
+			}
+			else
+			{
+				var compare = GetComparisonExpressionToApply(direction, firstColumn, firstReferenceValue, orEqual: true);
+				left = MakeComparisonExpression(
+					firstColumn,
+					firstMemberAccessExpression!, firstReferenceValueExpression!,
+					compare);
+			}
+
+			finalExpression = Expression.And(left, finalExpression);
 		}
 
 		return Expression.Lambda<Func<T, bool>>(finalExpression, param);
@@ -430,9 +546,21 @@ public static class KeysetPaginationExtensions
 	}
 
 	private static Func<Expression, Expression, BinaryExpression> GetComparisonExpressionToApply<T>(
-		KeysetPaginationDirection direction, IKeysetColumn<T> column, bool orEqual)
+		KeysetPaginationDirection direction, IKeysetColumn<T> column, object? referenceValue, bool orEqual)
 		where T : class
 	{
+		if (null == referenceValue)
+		{
+			if (!orEqual)
+			{
+				return Expression.NotEqual;
+			}
+			else
+			{
+				return Expression.Equal;
+			}
+		}
+
 		var greaterThan = direction switch
 		{
 			KeysetPaginationDirection.Forward when !column.IsDescending => true,

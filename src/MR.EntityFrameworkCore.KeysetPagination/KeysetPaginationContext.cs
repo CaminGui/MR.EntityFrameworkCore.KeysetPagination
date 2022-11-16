@@ -9,12 +9,14 @@ public class KeysetPaginationContext<T>
 		IQueryable<T> query,
 		IOrderedQueryable<T> orderedQuery,
 		IReadOnlyList<IKeysetColumn<T>> columns,
-		KeysetPaginationDirection direction)
+		KeysetPaginationDirection direction,
+		bool hasInitialReference)
 	{
 		Query = query;
 		OrderedQuery = orderedQuery;
 		Columns = columns;
 		Direction = direction;
+		HasInitialReference = hasInitialReference;
 	}
 
 	/// <summary>
@@ -32,5 +34,7 @@ public class KeysetPaginationContext<T>
 	/// </summary>
 	public KeysetPaginationDirection Direction { get; }
 
-	internal IReadOnlyList<IKeysetColumn<T>> Columns { get; }
+	public IReadOnlyList<IKeysetColumn<T>> Columns { get; }
+
+	public bool HasInitialReference { get; }
 }
