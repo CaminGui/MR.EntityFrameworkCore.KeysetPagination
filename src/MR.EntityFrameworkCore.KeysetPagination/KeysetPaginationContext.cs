@@ -1,4 +1,6 @@
-﻿namespace MR.EntityFrameworkCore.KeysetPagination;
+﻿using MR.EntityFrameworkCore.KeysetPagination.Columns;
+
+namespace MR.EntityFrameworkCore.KeysetPagination;
 
 public class KeysetPaginationContext<T>
 	where T : class
@@ -6,13 +8,15 @@ public class KeysetPaginationContext<T>
 	internal KeysetPaginationContext(
 		IQueryable<T> query,
 		IOrderedQueryable<T> orderedQuery,
-		IReadOnlyList<KeysetColumn<T>> columns,
-		KeysetPaginationDirection direction)
+		IReadOnlyList<IKeysetColumn<T>> columns,
+		KeysetPaginationDirection direction,
+		bool hasInitialReference)
 	{
 		Query = query;
 		OrderedQuery = orderedQuery;
 		Columns = columns;
 		Direction = direction;
+		HasInitialReference = hasInitialReference;
 	}
 
 	/// <summary>
@@ -30,5 +34,7 @@ public class KeysetPaginationContext<T>
 	/// </summary>
 	public KeysetPaginationDirection Direction { get; }
 
-	internal IReadOnlyList<KeysetColumn<T>> Columns { get; }
+	public IReadOnlyList<IKeysetColumn<T>> Columns { get; }
+
+	public bool HasInitialReference { get; }
 }
