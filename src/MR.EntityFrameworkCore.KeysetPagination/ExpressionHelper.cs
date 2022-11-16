@@ -194,15 +194,10 @@ internal static class ExpressionHelper
 
 	public static Expression AppendJsonElementsExpression(MemberExpression resultingExpression, List<string> props)
 	{
-		if (!props.Any())
-		{
-			throw new ArgumentException("Json properties list is empty and must contains at least one JsonElement to access.");
-		}
-
 		// Chain the root element of a JsonDocument (System:Text:JsonDocument type)
-		var documentElementProperty = Expression.Property(resultingExpression, "RootElement");
+		var documentRootElementProperty = Expression.Property(resultingExpression, "RootElement");
 
-		var getPropMeth = documentElementProperty.Type.GetMethod(nameof(JsonElement.GetProperty),
+		var getPropMeth = documentRootElementProperty.Type.GetMethod(nameof(JsonElement.GetProperty),
 							bindingAttr: BindingFlags.IgnoreCase | BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public,
 							null,
 							new[] { typeof(string) }, null);
@@ -211,11 +206,16 @@ internal static class ExpressionHelper
 			throw new InvalidOperationException("Connot find 'GetProperty(string)' on 'JsonElement'.");
 		}
 
+		if (!props.Any())
+		{
+			return documentRootElementProperty;
+		}
+
 		// Iterate over Json props and chain a call to GetProperty method on it
 		var propertiesGettersExpression = default(MethodCallExpression);
 		foreach (var prop in props)
 		{
-			var chainAnchor = propertiesGettersExpression ?? (Expression)documentElementProperty;
+			var chainAnchor = propertiesGettersExpression ?? (Expression)documentRootElementProperty;
 			propertiesGettersExpression = Expression.Call(chainAnchor, getPropMeth,
 															Expression.Constant(prop));
 		}

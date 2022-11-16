@@ -1,10 +1,10 @@
 ﻿<Project>
 
   <PropertyGroup>
-    <Product>MR.EntityFrameworkCore.KeysetPagination</Product>
+    <Product>GC.EntityFrameworkCore.KeysetPagination</Product>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <RepositoryUrl>https://github.com/mrahhal/MR.EntityFrameworkCore.KeysetPagination</RepositoryUrl>
-    <Authors>Mohammad Rahhal</Authors>
+    <RepositoryUrl>https://github.com/CaminGui/MR.EntityFrameworkCore.KeysetPagination</RepositoryUrl>
+    <Authors>Guillaume CAMIN</Authors>
     <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
